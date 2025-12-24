@@ -1,0 +1,96 @@
+#pragma once
+// #pragma once:
+// Bu header dosyasının birden fazla kez include edilmesini engeller.
+// (Klasik include guard yerine modern ve pratik yöntem)
+
+#include "Board.h"   // Oyun tahtasını ve kurallarını yöneten Board sınıfı
+#include <iostream>  // Menü ve durum yazıları için (cout)
+#include <string>    // std::string türü için
+
+// ======================================================
+// Game Sınıfı
+// ======================================================
+//
+// Game sınıfı oyunun "kontrol ve akış" kısmını yönetir.
+// Board sınıfı oyunun alanını ve kurallarını bilir,
+// Game sınıfı ise:
+//
+//  - Kullanıcıya menüyü gösterir
+//  - Kullanıcıdan komut alır
+//  - Girilen komutu çözümler (parse eder)
+//  - Board'a gerekli işlemleri yaptırır
+//  - Oyunun kazanılıp kaybedilmediğini kontrol eder
+//
+// Bu yapı OOP açısından önemlidir:
+// -> Game ve Board farklı sorumluluklara sahiptir
+// -> Single Responsibility prensibine uygundur
+class Game {
+private:
+    // ---------------------------
+    // Üye değişkenler
+    // ---------------------------
+
+    // Oyun tahtası:
+    // Composition (Bileşim) örneği:
+    // Game sınıfı, Board nesnesini içinde barındırır.
+    Board board;
+
+    // running:
+    // Oyunun ana döngüsünün devam edip etmeyeceğini kontrol eder.
+    // true  -> oyun devam ediyor
+    // false -> oyun sona erer
+    bool running;
+
+    // ---------------------------
+    // Private helper methods
+    // ---------------------------
+    // Bu fonksiyonlar sadece Game sınıfı içinde kullanılır.
+    // Dışarıdan çağrılmaları istenmez, bu yüzden private yapılmıştır.
+
+    // Oyunun başında ekrana menüyü yazdırır
+    void displayMenu() const;
+
+    // Kalan mayın, açılan hücre gibi durum bilgilerini ekrana yazdırır
+    void displayGameStatus() const;
+
+    // Kullanıcının girdiği string komutu çözümler (parse eder)
+    //
+    // Örnek inputlar:
+    //   "r 3 4" -> hücre aç
+    //   "f 2 1" -> bayrak koy/kaldır
+    //   "q"     -> oyundan çık
+    //
+    // row, col, action parametreleri referans (&) ile alınır
+    // çünkü bu fonksiyon bu değerleri doldurup dışarıya geri verir.
+    bool parseInput(std::string input, int& row, int& col, char& action);
+
+public:
+    // ---------------------------
+    // Constructor
+    // ---------------------------
+
+    // Game nesnesi oluşturulurken:
+    // - Board constructor'ı çağrılır (tahta hazırlanır)
+    // - running true yapılır (oyun başlar)
+    Game();
+    
+    // ---------------------------
+    // Ana oyun fonksiyonları
+    // ---------------------------
+
+    // Oyunun ana döngüsü:
+    // Menü -> input al -> işle -> ekrana bas -> tekrar
+    void run();
+
+    // Geçerli bir hamleyi uygular:
+    // action == 'r' -> hücre açma
+    // action == 'f' -> bayrak koyma/kaldırma
+    void processMove(int row, int col, char action);
+
+    // ---------------------------
+    // Const metodlar
+    // ---------------------------
+
+    // Oyunun çalışıp çalışmadığını dışarıdan öğrenmek için
+    bool isRunning() const { return running; }
+};
