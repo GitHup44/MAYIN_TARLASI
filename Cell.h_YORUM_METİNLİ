@@ -1,0 +1,152 @@
+#pragma once
+// #pragma once:
+// Bu header dosyasının birden fazla kez include edilmesini engeller.
+// (Klasik include guard yerine modern ve pratik bir yöntem)
+
+#include <iostream>  // İleride debug / çıktı amaçlı kullanılabilir
+#include <string>    // std::string türü için gerekli
+
+// ======================================================
+// Cell (Abstract Base Class) - Soyut Taban Sınıf
+// ======================================================
+//
+// Bu sınıf mayın tarlasındaki tüm hücrelerin ortak özelliklerini tanımlar.
+// "Abstract (soyut)" olmasının sebebi:
+//  - İçinde pure virtual ( = 0 ) fonksiyonlar bulunmasıdır.
+//  - Bu nedenle Cell sınıfından doğrudan nesne oluşturulamaz.
+//
+// Ama şunlar yapılabilir:
+//   Cell* c1 = new EmptyCell();
+//   Cell* c2 = new MineCell();
+//
+// Bu sayede POLYMORPHISM (çok biçimlilik) sağlanır.
+class Cell {
+protected:
+    // protected:
+    // - Türetilmiş sınıflar (EmptyCell, MineCell) bu değişkenlere erişebilir
+    // - Dışarıdan (Board, Game) doğrudan erişilemez
+    // Encapsulation açısından doğru bir tercihtir.
+
+    bool mineFlag;       // Hücre mayın mı?
+    bool revealed;       // Hücre açıldı mı?
+    bool flagged;        // Hücreye bayrak kondu mu?
+    int adjacentMines;   // Komşu (8 yön) mayın sayısı
+
+public:
+    // ---------------------------
+    // Constructor & Destructor
+    // ---------------------------
+
+    // Constructor:
+    // Hücrenin başlangıç durumunu ayarlar (Cell.cpp içinde tanımlı).
+    Cell();
+
+    // Virtual destructor:
+    // Polymorphism ile Cell* üzerinden delete yapılırken
+    // doğru türetilmiş sınıfın destructor'ının çağrılmasını sağlar.
+    virtual ~Cell() = default;
+
+    // ---------------------------
+    // Pure Virtual Functions
+    // ---------------------------
+    //
+    // "= 0" ifadesi bu fonksiyonların gövdesinin burada olmadığını belirtir.
+    // Türetilmiş sınıflar bu fonksiyonları MUTLAKA override etmek zorundadır.
+    //
+    // Bu fonksiyonlar Cell sınıfını "soyut (abstract)" yapar.
+
+    // Hücre açıldığında ne olacak?
+    // EmptyCell ve MineCell farklı davranır.
+    virtual void reveal() = 0;
+
+    // Hücre ekranda hangi karakterle gösterilecek?
+    // Örn: '?', 'F', '.', '1'..'8', 'X'
+    virtual char getDisplay() const = 0;
+
+    // Hücre hakkında metinsel bilgi döndürür (debug / bilgi amaçlı)
+    virtual std::string getInfo() const = 0;
+
+    // ---------------------------
+    // Virtual Functions
+    // ---------------------------
+    //
+    // Bu fonksiyonların base class'ta bir varsayılan davranışı vardır,
+    // ama istersek türetilmiş sınıflarda override edebiliriz.
+
+    // Hücre mayın mı?
+    // Base class'ta mineFlag döndürür.
+    // MineCell bu fonksiyonu override ederek her zaman true döndürür.
+    virtual bool isMine() const;
+
+    // Bayrak koy / kaldır (toggle)
+    // Hücre açılmamışsa bayrak durumu tersine çevrilir.
+    virtual void toggleFlag();
+    
+    // ---------------------------
+    // Setter / Getter Fonksiyonları
+    // ---------------------------
+    //
+    // Encapsulation:
+    // Değişkenlere doğrudan erişmek yerine fonksiyonlar üzerinden erişiyoruz.
+
+    // Hücreyi mayın yapar
+    void setMine();
+
+    // Komşu mayın sayısını ayarlar
+    void setAdjacentMines(int count);
+    
+    // Küçük getter fonksiyonları:
+    // Inline yazılmıştır (performans ve sadelik için)
+    bool isRevealed() const { return revealed; }
+    bool isFlagged() const { return flagged; }
+    int getAdjacentMines() const { return adjacentMines; }
+};
+
+// ======================================================
+// EmptyCell - Türetilmiş Sınıf (Mayın Olmayan Hücre)
+// ======================================================
+//
+// Cell sınıfından türetilmiştir.
+// Pure virtual fonksiyonları override ederek "somut" sınıf haline gelir.
+class EmptyCell : public Cell {
+public:
+    // Constructor:
+    // Önce Cell constructor'ı çalışır, sonra EmptyCell oluşturulur.
+    EmptyCell() : Cell() {}
+    
+    // Hücreyi açma davranışı
+    void reveal() override;
+
+    // Hücrenin ekranda nasıl görüneceği
+    char getDisplay() const override;
+
+    // Hücre hakkında bilgi metni
+    std::string getInfo() const override;
+};
+
+// ======================================================
+// MineCell - Türetilmiş Sınıf (Mayın Hücresi)
+// ======================================================
+//
+// Cell sınıfından türetilmiştir.
+// Constructor içinde setMine() çağrılarak hücre mayın yapılır.
+class MineCell : public Cell {
+public:
+    // Constructor:
+    // 1) Cell() çalışır (mineFlag=false)
+    // 2) setMine() çağrılır (mineFlag=true)
+    MineCell() : Cell() { setMine(); }
+    
+    // Mayın hücresini açma davranışı
+    void reveal() override;
+
+    // Mayın hücresinin ekranda görünümü
+    char getDisplay() const override;
+
+    // Mayın hücresinin bilgi metni
+    std::string getInfo() const override;
+
+    // isMine override:
+    // MineCell her zaman mayın olduğu için true döndürür.
+    bool isMine() const override;
+};
