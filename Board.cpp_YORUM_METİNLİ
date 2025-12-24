@@ -1,0 +1,300 @@
+#include "Board.h"     // Board sınıfının tanımı
+#include <iostream>    // std::cout için
+#include <algorithm>   // (Şu an kullanılmıyor ama ileride faydalı olabilir)
+
+// ======================================================
+// Board::Board() - Constructor
+// ======================================================
+// Board nesnesi oluşturulduğunda otomatik çalışır.
+//
+// revealedCells : Açılmış (mayın olmayan) hücre sayısı
+// gameOver      : Oyun bitti mi?
+// gameWon       : Oyun kazanıldı mı?
+//
+// Constructor içinde generateBoard() çağrılır:
+// - Grid oluşturulur
+// - Mayınlar yerleştirilir
+// - Komşu mayın sayıları hesaplanır
+Board::Board() 
+    : revealedCells(0), gameOver(false), gameWon(false) 
+{
+    generateBoard();
+}
+
+// ======================================================
+// Board::~Board() - Destructor
+// ======================================================
+// Grid içindeki hücreler new ile oluşturulduğu için
+// delete ile manuel olarak serbest bırakılmaları gerekir.
+//
+// Burada polymorphism önemlidir:
+// Cell destructor'ı virtual olduğu için
+// delete işlemi doğru türetilmiş sınıfı (EmptyCell / MineCell) temizler.
+Board::~Board() {
+    for (int i = 0; i < ROWS; ++i) {
+        for (int j = 0; j < COLS; ++j) {
+            delete grid[i][j];
+        }
+    }
+}
+
+// ======================================================
+// generateBoard()
+// ======================================================
+// Oyun tahtasını baştan kurar:
+//
+// 1) Tüm hücreleri EmptyCell olarak oluşturur
+// 2) placeMines() ile rastgele mayınlar yerleştirir
+// 3) calculateAdjacentMines() ile komşu mayın sayılarını hesaplar
+void Board::generateBoard() {
+    // Not: Yorumda "Smart pointers" yazıyor ama burada raw pointer (Cell*) kullanılıyor.
+    // Bu bilinçli bir tercih: pointer + new/delete konusunu göstermek için.
+    for (int i = 0; i < ROWS; ++i) {
+        std::vector<Cell*> row;
+        for (int j = 0; j < COLS; ++j) {
+            // Her hücre heap üzerinde oluşturuluyor
+            row.push_back(new EmptyCell());
+        }
+        grid.push_back(row);
+    }
+
+    placeMines();
+    calculateAdjacentMines();
+}
+
+// ======================================================
+// placeMines()
+// ======================================================
+// MINES kadar mayını tahtaya rastgele yerleştirir.
+//
+// Modern C++ random yapısı kullanılır:
+// - random_device : seed üretir
+// - mt19937       : rastgele sayı üreteci
+// - uniform_int_distribution : eşit dağılımlı sayı üretir
+void Board::placeMines() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis_row(0, ROWS - 1);
+    std::uniform_int_distribution<> dis_col(0, COLS - 1);
+
+    int placed = 0;
+
+    // İstenen sayıda mayın yerleşene kadar devam eder
+    while (placed < MINES) {
+        int row = dis_row(gen);
+        int col = dis_col(gen);
+
+        // Eğer seçilen hücre zaten mayın değilse
+        if (!grid[row][col]->isMine()) {
+            // Önce eski EmptyCell nesnesi silinir
+            delete grid[row][col];
+
+            // Yerine MineCell oluşturulur
+            grid[row][col] = new MineCell();
+            placed++;
+        }
+    }
+}
+
+// ======================================================
+// calculateAdjacentMines()
+// ======================================================
+// Her mayın olmayan hücre için,
+// çevresindeki 8 komşuda kaç mayın olduğunu hesaplar.
+void Board::calculateAdjacentMines() {
+
+    // Lambda fonksiyon:
+    // Verilen (row, col) hücresinin çevresindeki mayın sayısını döndürür.
+    // [this] -> Board'un grid, ROWS, COLS gibi üyelerine erişim sağlar.
+    auto countAdjacentMines = [this](int row, int col) -> int {
+        int count = 0;
+
+        // -1 .. +1 aralığı: 8 komşuyu dolaşmak için
+        for (int i = -1; i <= 1; ++i) {
+            for (int j = -1; j <= 1; ++j) {
+
+                // Kendisini sayma
+                if (i == 0 && j == 0) continue;
+
+                int newRow = row + i;
+                int newCol = col + j;
+
+                // Tahta sınırları içinde mi?
+                if (newRow >= 0 && newRow < ROWS &&
+                    newCol >= 0 && newCol < COLS) {
+
+                    if (grid[newRow][newCol]->isMine()) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    };
+
+    // Her hücre için komşu mayın sayısını ayarla
+    for (int i = 0; i < ROWS; ++i) {
+        for (int j = 0; j < COLS; ++j) {
+            // Mayın olmayan hücreler için hesaplama yapılır
+            if (!grid[i][j]->isMine()) {
+                grid[i][j]->setAdjacentMines(countAdjacentMines(i, j));
+            }
+        }
+    }
+}
+
+// ======================================================
+// revealEmptyCells(row, col)
+// ======================================================
+// Flood Fill algoritması:
+// Eğer açılan hücrenin komşu mayın sayısı 0 ise,
+// çevresindeki hücreler de otomatik olarak açılır.
+void Board::revealEmptyCells(int row, int col) {
+    // Tahta sınır kontrolü
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        return;
+    }
+
+    // Hücre pointer'ını al
+    Cell* cell = grid[row][col];
+
+    // Zaten açılmışsa veya bayraklıysa dokunma
+    if (cell->isRevealed() || cell->isFlagged()) {
+        return;
+    }
+
+    // Mayınsa burada açma
+    if (cell->isMine()) {
+        return;
+    }
+
+    // Hücreyi aç
+    cell->reveal();
+    revealedCells++;
+
+    // Eğer çevresinde hiç mayın yoksa komşuları da aç
+    if (cell->getAdjacentMines() == 0) {
+        for (int i = -1; i <= 1; ++i) {
+            for (int j = -1; j <= 1; ++j) {
+                if (i != 0 || j != 0) {
+                    revealEmptyCells(row + i, col + j);
+                }
+            }
+        }
+    }
+}
+
+// ======================================================
+// revealCell(row, col)
+// ======================================================
+// Kullanıcı bir hücreyi açmak istediğinde çağrılır.
+//
+// - Mayına basılırsa: oyun biter, tüm mayınlar açılır
+// - Boş hücreyse: flood fill çalışır
+// - Sonunda kazanma durumu kontrol edilir
+bool Board::revealCell(int row, int col) {
+    // Sınır kontrolü
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        return false;
+    }
+
+    Cell* cell = grid[row][col];
+
+    // Zaten açılmış veya bayraklıysa geçersiz hamle
+    if (cell->isRevealed() || cell->isFlagged()) {
+        return false;
+    }
+
+    // Mayına basıldıysa
+    if (cell->isMine()) {
+        gameOver = true;
+
+        // Oyun bitince tüm mayınları göster
+        for (int i = 0; i < ROWS; ++i) {
+            for (int j = 0; j < COLS; ++j) {
+                if (grid[i][j]->isMine()) {
+                    grid[i][j]->reveal();
+                }
+            }
+        }
+        return false;
+    }
+
+    // Boş hücre açma (flood fill)
+    revealEmptyCells(row, col);
+
+    // Kazanma koşulu kontrolü
+    if (revealedCells == getRequiredReveals()) {
+        gameWon = true;
+        gameOver = true;
+    }
+
+    return true;
+}
+
+// ======================================================
+// flagCell(row, col)
+// ======================================================
+// Hücreye bayrak koyar veya kaldırır.
+void Board::flagCell(int row, int col) {
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        return;
+    }
+
+    grid[row][col]->toggleFlag();
+}
+
+// ======================================================
+// Hücre durum sorgulama fonksiyonları
+// ======================================================
+bool Board::isCellRevealed(int row, int col) const {
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        return false;
+    }
+    return grid[row][col]->isRevealed();
+}
+
+bool Board::isCellFlagged(int row, int col) const {
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        return false;
+    }
+    return grid[row][col]->isFlagged();
+}
+
+// ======================================================
+// getCell(row, col)
+// ======================================================
+// Hücre pointer'ını döndürür.
+// Encapsulation biraz zayıflar ama esneklik sağlar.
+Cell* Board::getCell(int row, int col) {
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        return nullptr;
+    }
+    return grid[row][col];
+}
+
+// ======================================================
+// display()
+// ======================================================
+// Tahtayı konsola basar.
+// Polymorphism burada net görülür:
+// cell->getDisplay() çağrısı hücre tipine göre farklı sonuç verir.
+void Board::display() const {
+    std::cout << "\n  ";
+
+    // Sütun numaraları
+    for (int j = 0; j < COLS; ++j) {
+        std::cout << j << " ";
+    }
+    std::cout << "\n";
+
+    // Satır satır yazdırma
+    for (int i = 0; i < ROWS; ++i) {
+        std::cout << i << " ";
+        for (int j = 0; j < COLS; ++j) {
+            const Cell* cell = grid[i][j];
+            std::cout << cell->getDisplay() << " ";
+        }
+        std::cout << "\n";
+    }
+}
