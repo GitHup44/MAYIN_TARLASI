@@ -1,0 +1,187 @@
+#include "Cell.h"   // Cell, EmptyCell ve MineCell sınıflarının tanımları burada
+
+// ======================================================
+// Cell (Base Class) - Temel Hücre Sınıfı
+// ======================================================
+//
+// Bu sınıf mayın tarlasındaki tüm hücrelerin ortak özelliklerini tutar.
+// Soyut (abstract) bir taban sınıf olarak tasarlanmıştır (Cell.h tarafında).
+// Türetilmiş sınıflar:
+//  - EmptyCell : Mayın olmayan hücre
+//  - MineCell  : Mayın olan hücre
+//
+
+// ------------------------------------------------------
+// Cell::Cell() - Constructor
+// ------------------------------------------------------
+// Hücre oluşturulurken başlangıç değerlerini ayarlar:
+//
+// mineFlag       : Hücre mayın mı? (false)
+// revealed       : Hücre açıldı mı? (false)
+// flagged        : Bayrak var mı? (false)
+// adjacentMines  : Komşu mayın sayısı (0)
+//
+// Bu constructor, EmptyCell ve MineCell oluşturulurken de
+// otomatik olarak çağrılır (inheritance).
+Cell::Cell()
+    : mineFlag(false), revealed(false), flagged(false), adjacentMines(0)
+{
+}
+
+// ------------------------------------------------------
+// isMine()
+// ------------------------------------------------------
+// Hücrenin mayın olup olmadığını döndürür.
+// Base class'ta mineFlag değişkenine bakar.
+// MineCell bu fonksiyonu override ederek her zaman true döndürür.
+bool Cell::isMine() const {
+    return mineFlag;
+}
+
+// ------------------------------------------------------
+// toggleFlag()
+// ------------------------------------------------------
+// Hücreye bayrak koyar veya kaldırır.
+//
+// Kural:
+// - Hücre açılmışsa bayrak değiştirilemez.
+// - Hücre kapalıysa bayrak durumu tersine çevrilir.
+void Cell::toggleFlag() {
+    if (!revealed) {
+        flagged = !flagged;
+    }
+}
+
+// ------------------------------------------------------
+// setMine()
+// ------------------------------------------------------
+// Hücreyi mayın yapar.
+// Genellikle Board::placeMines() içinde çağrılır.
+void Cell::setMine() {
+    mineFlag = true;
+}
+
+// ------------------------------------------------------
+// setAdjacentMines()
+// ------------------------------------------------------
+// Hücrenin çevresindeki (8 komşu) mayın sayısını ayarlar.
+// Bu değer Board::calculateAdjacentMines() tarafından hesaplanır.
+void Cell::setAdjacentMines(int count) {
+    adjacentMines = count;
+}
+
+
+// ======================================================
+// EmptyCell (Derived Class) - Mayın Olmayan Hücre
+// ======================================================
+//
+// Bu sınıf Cell'den türetilmiştir.
+// Mayın olmayan hücrelerin davranışlarını tanımlar.
+//
+
+// ------------------------------------------------------
+// EmptyCell::reveal()
+// ------------------------------------------------------
+// Hücreyi açar.
+//
+// Kural:
+// - Hücre zaten açılmışsa tekrar açılmaz.
+// - Hücre bayraklıysa açılmaz (oyun kuralı).
+void EmptyCell::reveal() {
+    if (!revealed && !flagged) {
+        revealed = true;
+    }
+}
+
+// ------------------------------------------------------
+// EmptyCell::getDisplay()
+// ------------------------------------------------------
+// Hücre ekranda hangi karakterle gösterilecek?
+//
+// Öncelik sırası:
+// 1) Bayrak varsa        -> 'F'
+// 2) Açılmamışsa         -> '?'
+// 3) Açık ve 0 komşuysa  -> '.'
+// 4) Açık ve >0 komşuysa -> '1'..'8'
+char EmptyCell::getDisplay() const {
+    if (flagged) {
+        return 'F';  // Bayraklı hücre
+    }
+    if (!revealed) {
+        return '?';  // Kapalı hücre
+    }
+    if (adjacentMines == 0) {
+        return '.';  // Komşu mayın yok
+    }
+
+    // Sayıyı karaktere çevirme:
+    // '0' + 3 -> '3'
+    return static_cast<char>('0' + adjacentMines);
+}
+
+// ------------------------------------------------------
+// EmptyCell::getInfo()
+// ------------------------------------------------------
+// Hücrenin durumunu metin olarak döndürür.
+// Debug veya bilgi amaçlı kullanılabilir.
+std::string EmptyCell::getInfo() const {
+    if (flagged) return "Bayraklı";
+    if (!revealed) return "Kapalı";
+    if (adjacentMines == 0) return "Boş";
+    return "Komşu mayın: " + std::to_string(adjacentMines);
+}
+
+
+// ======================================================
+// MineCell (Derived Class) - Mayın Hücresi
+// ======================================================
+//
+// Bu sınıf Cell'den türetilmiştir.
+// Mayın hücrelerinin davranışlarını tanımlar.
+//
+
+// ------------------------------------------------------
+// MineCell::reveal()
+// ------------------------------------------------------
+// Mayın hücresi açıldığında revealed true yapılır.
+// Oyun bitirme mantığı Board / Game tarafında yönetilir.
+void MineCell::reveal() {
+    revealed = true;
+}
+
+// ------------------------------------------------------
+// MineCell::getDisplay()
+// ------------------------------------------------------
+// Mayın hücresinin ekranda gösterimi:
+//
+// - Bayraklı ve açılmamışsa -> 'F'
+// - Açılmamışsa             -> '?'
+// - Açılmışsa               -> 'X'
+char MineCell::getDisplay() const {
+    if (flagged && !revealed) {
+        return 'F';  // Bayraklı mayın
+    }
+    if (!revealed) {
+        return '?';  // Kapalı hücre
+    }
+    return 'X';      // Mayın
+}
+
+// ------------------------------------------------------
+// MineCell::getInfo()
+// ------------------------------------------------------
+// Mayın hücresinin metinsel durumu.
+std::string MineCell::getInfo() const {
+    if (!revealed && flagged) return "Bayrakli mayin";
+    if (!revealed) return "Kapali hucre";
+    return "MAYINLAR!";
+}
+
+// ------------------------------------------------------
+// MineCell::isMine()
+// ------------------------------------------------------
+// Bu fonksiyon base class'taki isMine() fonksiyonunu override eder.
+// MineCell her zaman mayındır, bu yüzden true döndürür.
+bool MineCell::isMine() const {
+    return true;
+}
