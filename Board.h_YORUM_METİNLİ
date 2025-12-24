@@ -1,0 +1,127 @@
+#pragma once
+// #pragma once:
+// Bu header dosyasının birden fazla kez include edilmesini engeller.
+// (Klasik include guard yerine modern ve pratik bir yöntem)
+
+#include "Cell.h"   // Cell, EmptyCell ve MineCell sınıfları
+#include <vector>   // 2 boyutlu tahta (grid) için std::vector
+#include <memory>   // (Şu an kullanılmıyor; smart pointer'a geçilirse gerekli olur)
+#include <random>   // Rastgele mayın yerleştirmek için
+
+// ======================================================
+// Board Sınıfı
+// ======================================================
+//
+// Board sınıfı mayın tarlasının tamamını temsil eder.
+// Sorumlulukları:
+//  - Tahtayı oluşturmak (grid)
+//  - Mayınları yerleştirmek
+//  - Komşu mayın sayılarını hesaplamak
+//  - Hücre açma / bayrak koyma işlemlerini yapmak
+//  - Oyunun kazanılıp kazanılmadığını takip etmek
+//
+// Game sınıfı "oyunu yönetir",
+// Board sınıfı ise "oyun alanını ve kuralları" bilir.
+class Board {
+private:
+    // ---------------------------
+    // Sabit oyun parametreleri
+    // ---------------------------
+    // static constexpr:
+    //  - Değerler derleme zamanında bellidir
+    //  - Tüm Board nesneleri için aynıdır
+    static constexpr int ROWS  = 8;   // Satır sayısı
+    static constexpr int COLS  = 8;   // Sütun sayısı
+    static constexpr int MINES = 10;  // Mayın sayısı
+
+    // ---------------------------
+    // Oyun tahtası (grid)
+    // ---------------------------
+    // 2 boyutlu hücre matrisi.
+    //
+    // Burada Cell* kullanıyoruz çünkü:
+    //  - Polymorphism istiyoruz (EmptyCell ve MineCell aynı grid'de tutuluyor)
+    //  - new / delete + destructor konularını göstermek istiyoruz
+    //
+    // NOT:
+    // Yorumda "Smart pointers" yazıyor ama şu an RAW POINTER (Cell*) kullanılıyor.
+    // Bu bilinçli bir tercih; smart pointer'a geçilirse std::unique_ptr<Cell> kullanılabilir.
+    std::vector<std::vector<Cell*>> grid;
+
+    // ---------------------------
+    // Oyun durumu değişkenleri
+    // ---------------------------
+    int revealedCells; // Açılmış (mayın olmayan) hücre sayısı
+    bool gameOver;     // Oyun bitti mi?
+    bool gameWon;      // Oyun kazanıldı mı?
+
+    // ---------------------------
+    // Private (Özel) metodlar
+    // ---------------------------
+    // Bu fonksiyonlar sadece Board içinde kullanılır.
+    // Dışarıdan çağrılmaz (Encapsulation).
+
+    void generateBoard();                 // Tahtayı oluşturur
+    void placeMines();                    // Mayınları rastgele yerleştirir
+    void calculateAdjacentMines();        // Komşu mayın sayılarını hesaplar
+    void revealEmptyCells(int row, int col); // Flood fill (rekürsif açma)
+
+public:
+    // ---------------------------
+    // Constructor & Destructor
+    // ---------------------------
+
+    // Constructor:
+    // Board oluşturulunca tahta hazırlanır ve oyun başlar.
+    Board();
+
+    // Destructor:
+    // grid içindeki new ile oluşturulmuş Cell*'ları delete eder.
+    // Bellek sızıntısını önlemek için şarttır.
+    ~Board();
+
+    // ---------------------------
+    // Const metodlar (Const mekanizması)
+    // ---------------------------
+    // Bu fonksiyonlar Board'un iç durumunu değiştirmez,
+    // sadece bilgi verir.
+
+    int getRows()  const { return ROWS; }
+    int getCols()  const { return COLS; }
+    int getMines() const { return MINES; }
+    
+    bool isGameOver() const { return gameOver; }
+    bool isGameWon()  const { return gameWon; }
+
+    int getRevealedCells() const { return revealedCells; }
+
+    // Kazanmak için açılması gereken hücre sayısı:
+    // Toplam hücre - mayın sayısı
+    int getRequiredReveals() const { return ROWS * COLS - MINES; }
+
+    // ---------------------------
+    // Oyun işlemleri (Public API)
+    // ---------------------------
+    // Game sınıfı bu fonksiyonları kullanarak
+    // Board ile etkileşime girer.
+
+    // Hücre açma
+    bool revealCell(int row, int col);
+
+    // Bayrak koy / kaldır
+    void flagCell(int row, int col);
+
+    // Hücre durum sorguları
+    bool isCellRevealed(int row, int col) const;
+    bool isCellFlagged(int row, int col) const;
+    
+    // Hücreye doğrudan erişim
+    // Not: Encapsulation'ı biraz zayıflatır ama esneklik sağlar.
+    Cell* getCell(int row, int col);
+
+    // ---------------------------
+    // Görselleştirme
+    // ---------------------------
+    // Tahtayı konsola ASCII karakterlerle basar.
+    void display() const;
+};
