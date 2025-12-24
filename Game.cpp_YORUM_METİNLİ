@@ -1,0 +1,200 @@
+#include "Game.h"     // Game sınıfının tanımı (Game.h) burada
+#include <sstream>    // std::istringstream -> string'i parçalayıp okumak için
+#include <cctype>     // std::tolower -> karakteri küçültmek için
+
+// ======================================================
+// Game::Game() - Constructor (Yapıcı)
+// ======================================================
+// Game nesnesi oluşturulunca otomatik çalışır.
+//  - board()    : Board sınıfının default constructor'ını çağırır (tahta kurulur)
+//  - running(true): oyun döngüsü başlasın diye true yapılır
+Game::Game() : board(), running(true) {}
+
+// ======================================================
+// displayMenu() - Oyunun başındaki menü
+// ======================================================
+// const: Bu fonksiyon Game'in iç durumunu değiştirmez, sadece ekrana yazar.
+void Game::displayMenu() const {
+    std::cout << "\n========================================\n";
+    std::cout << "       MAYIN TARLASI OYUNU\n";
+    std::cout << "========================================\n";
+
+    // Kullanıcıya hangi komutların geçerli olduğunu anlatıyoruz.
+    std::cout << "\nKomutlar:\n";
+    std::cout << "  r <satir> <sutun> - Hucre ac (ornek: r 3 4)\n";
+    std::cout << "  f <satir> <sutun> - Bayrak koy (ornek: f 3 4)\n";
+    std::cout << "  q - Cik\n";
+    std::cout << "========================================\n";
+}
+
+// ======================================================
+// displayGameStatus() - Oyun durumunu göster
+// ======================================================
+// Tahtadaki bayrak sayısını sayar ve kullanıcıya kalan mayın gibi bilgi verir.
+// Not: Burada O(ROWS*COLS) gezme var. 8x8 için sorun değil.
+void Game::displayGameStatus() const {
+    int flaggedCount = 0;
+
+    // Tüm hücreleri gezerek kaç bayrak var sayıyoruz.
+    for (int i = 0; i < board.getRows(); ++i) {
+        for (int j = 0; j < board.getCols(); ++j) {
+            if (board.isCellFlagged(i, j)) {
+                flaggedCount++;
+            }
+        }
+    }
+
+    // Kalan mayın = toplam mayın - konulan bayrak (tahmini gösterim)
+    std::cout << "\nKalan mayin: " << (board.getMines() - flaggedCount);
+
+    // Açılan hücre sayısı / kazanmak için açılması gereken hücre sayısı
+    std::cout << " | Acilan: " << board.getRevealedCells()
+              << "/" << board.getRequiredReveals() << "\n";
+}
+
+// ======================================================
+// parseInput() - Kullanıcı komutunu çözümleme (parse)
+// ======================================================
+// input örnekleri:
+//   "r 3 4" -> action='r', row=3, col=4
+//   "f 2 1" -> action='f', row=2, col=1
+//   "q"     -> action='q'
+//
+// row, col, action referans (&) ile alınır:
+// çünkü fonksiyon içinde bu değerleri doldurup dışarıya geri vermek isteriz.
+bool Game::parseInput(std::string input, int& row, int& col, char& action) {
+    // 1) Boş input kontrolü
+    if (input.empty()) {
+        return false;
+    }
+
+    // 2) istringstream ile string’i parçalayıp okumak:
+    // "r 3 4" gibi ifadeleri tek tek token olarak alırız.
+    std::istringstream iss(input);
+
+    // 3) İlk token: action (r, f, q)
+    if (!(iss >> action)) {
+        return false;
+    }
+
+    // 4) Büyük/küçük harf farkını kaldır:
+    // 'R' -> 'r' gibi
+    action = std::tolower(static_cast<unsigned char>(action));
+
+    // 5) Çıkış komutuysa:
+    // Not: Bu fonksiyon q gelince true dönüyor, run() içinde action=='q' ile işleniyor.
+    if (action == 'q') {
+        return true;
+    }
+
+    // 6) action sadece r veya f olmalı
+    if (action != 'r' && action != 'f') {
+        return false;
+    }
+
+    // 7) r veya f ise row ve col da gelmeli
+    if (!(iss >> row >> col)) {
+        return false;
+    }
+
+    // 8) Tahta sınır kontrolü (range check)
+    if (row < 0 || row >= board.getRows() ||
+        col < 0 || col >= board.getCols()) {
+        return false;
+    }
+
+    // Her şey doğruysa komut geçerlidir.
+    return true;
+}
+
+// ======================================================
+// processMove() - Geçerli hamleyi uygula
+// ======================================================
+// action:
+//  - 'r' : hücre aç
+//  - 'f' : bayrak koy/kaldır
+void Game::processMove(int row, int col, char action) {
+    if (action == 'r') {
+        // revealCell false döndürürse genelde:
+        //  - mayına basıldı
+        //  - veya hamle geçersizdi (örneğin bayraklı/açık hücre) (Board tasarımına bağlı)
+        if (!board.revealCell(row, col)) {
+            std::cout << "\n[!] Mayina bastiniz! Oyun bitti!\n";
+        }
+    } else if (action == 'f') {
+        // toggleFlag mantığı: varsa kaldır, yoksa koy
+        board.flagCell(row, col);
+        std::cout << "\n[+] Bayrak koyuldu/kaldirildi.\n";
+    }
+}
+
+// ======================================================
+// run() - Oyunun ana döngüsü (main loop)
+// ======================================================
+// Menü göster -> tahta bas -> input al -> parse et -> hamleyi uygula -> kazan/kaybet kontrol et
+void Game::run() {
+    displayMenu();
+
+    // running true oldukça oyun devam eder.
+    while (running) {
+        // 1) Tahtayı çiz (konsolda görselleştirme)
+        board.display();
+
+        // 2) Kısa durum bilgisi göster
+        displayGameStatus();
+
+        // 3) Oyun bitmiş mi? (mayına basma veya kazanma)
+        if (board.isGameOver()) {
+            if (board.isGameWon()) {
+                std::cout << "\n[*] TEBRIKLER! Oyunu kazandiniz!\n";
+            } else {
+                std::cout << "\n[*] Oyun bitti. Kaybettiniz!\n";
+            }
+
+            running = false;
+            break;
+        }
+
+        // 4) Kullanıcıdan komut al
+        std::cout << "\nKomut girin (r/f satir sutun veya q): ";
+        std::string input;
+        std::getline(std::cin, input);  // getline boşlukları da düzgün alır
+
+        // 5) Trim whitespace (baş/son boşlukları temizleme)
+        // Örn: "   r 3 4   " -> "r 3 4"
+        input.erase(0, input.find_first_not_of(" \t\n\r"));
+        input.erase(input.find_last_not_of(" \t\n\r") + 1);
+
+        // 6) Parse için başlangıç değerleri
+        int row = -1, col = -1;
+        char action = ' ';
+
+        // 7) Komutu çözümle
+        if (!parseInput(input, row, col, action)) {
+            // Kullanıcı hiçbir şey yazmadıysa tekrar input iste
+            if (input.empty()) continue;
+
+            // Eğer q yazdıysa çık
+            // (Ek güvenlik kontrolü)
+            if (input[0] == 'q' || input[0] == 'Q') {
+                running = false;
+                std::cout << "\nOyundan ciktiniz.\n";
+            } else {
+                // Hatalı format mesajı:
+                // Burada sabit 0-7 yerine board boyutuna göre dinamik gösterim var.
+                std::cout << "\n[!] HATA! Format: r/f <satir 0-" << (board.getRows()-1)
+                          << "> <sutun 0-" << (board.getCols()-1) << "> veya q\n";
+                std::cout << "   Ornek: r 3 4  veya  f 2 1\n";
+            }
+            continue;
+        }
+
+        // 8) action'a göre karar ver
+        if (action == 'q') {
+            running = false;
+            std::cout << "\nOyundan ciktiniz.\n";
+        } else {
+            processMove(row, col, action);
+        }
+    }
+}
